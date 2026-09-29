@@ -9,6 +9,11 @@ jobs:
   build:
     runs-on: windows-latest
 
+    # Без contents: write шаг публикации релиза получает
+    # «Resource not accessible by integration».
+    permissions:
+      contents: write
+
     steps:
       - uses: actions/checkout@v4
 
