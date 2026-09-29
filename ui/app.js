@@ -82,7 +82,7 @@ function renderCards(s) {
     '</div><div class="v">' + c.v + "</div></div>").join("");
 }
 
-function dropRow(d) {
+function dropRow(d, blocked) {
   const pct = d.percent;
   const full = pct >= 100;
   const cls = d.claimed ? "done" : "";
@@ -90,6 +90,13 @@ function dropRow(d) {
   let right;
   if (d.claimed) {
     right = "<b>забрано</b>";
+  } else if (d.ready && blocked) {
+    // Забрать из программы нельзя: Twitch требует браузерный отпечаток
+    // (Client-Integrity). Ведём на страницу инвентаря, где кнопка Claim
+    // настоящая и срабатывает обычным кликом в браузере.
+    right = "<a class='claim' href='" + esc(STATE.inventory_url) +
+      "' target='_blank' rel='noopener'>забрать →</a>" +
+      "<span class='eta'>нужен браузер</span>";
   } else if (d.ready) {
     right = "<span class='ready'>ГОТОВО</span><span class='eta'>ждёт клейма</span>";
   } else {
@@ -122,7 +129,7 @@ function channelsBlock(c) {
   return '<div class="channels"><span class="lbl">где смотреть</span>' + html + "</div>";
 }
 
-function campaignBlock(c) {
+function campaignBlock(c, blocked) {
   const tags = [];
   if (c.expired) tags.push('<span class="tag">закончилась</span>');
   else if (c.deadline_seconds != null)
@@ -147,7 +154,8 @@ function campaignBlock(c) {
     '<div class="camp-head"><div class="camp-title"><strong>' + esc(c.name) +
     '</strong> <span class="game">' + esc(c.game) + "</span></div>" +
     '<div class="tags">' + tags.join("") + "</div></div>" +
-    '<div class="drops">' + c.drops.map(dropRow).join("") + "</div>" +
+    '<div class="drops">' +
+    c.drops.map(d => dropRow(d, blocked)).join("") + "</div>" +
     channelsBlock(c) +
     "</section>";
 }
@@ -164,6 +172,7 @@ function passes(c) {
 
 function renderCampaigns(s) {
   const list = (s.campaigns || []).filter(passes);
+  const blocked = !!s.claim_blocked;
   const box = $("#campaigns");
   const empty = $("#empty");
 
@@ -173,10 +182,67 @@ function renderCampaigns(s) {
     empty.textContent = s.connected
       ? "Под текущий фильтр ничего не попало."
       : "Нет соединения с Twitch.";
+    renderNotice(s);
     return;
   }
   empty.hidden = true;
-  box.innerHTML = list.map(campaignBlock).join("");
+  box.innerHTML = list.map(c => campaignBlock(c, blocked)).join("");
+  renderNotice(s);
+}
+
+/* Тумблер автозбора при заблокированном заборе не должен показывать
+   включённое состояние: награду им забрать нельзя. Гасим и переименовываем,
+   иначе в шапке написано «автоклейм», а на деле ничего не происходит. */
+function applyClaimBlocked(s) {
+  if (!s) return;
+  const blocked = !!s.claim_blocked;
+  const cb = $("#auto-claim");
+  const wrap = $("#auto-claim-wrap");
+  const label = $("#auto-claim-label");
+  if (blocked) {
+    cb.checked = false;
+    cb.disabled = true;
+    wrap.classList.add("dead");
+    label.textContent = "автозабор недоступен";
+    wrap.title =
+      "Twitch требует браузерный отпечаток для забора наград — " +
+      "из программы это невозможно. Забирайте кнопкой на странице инвентаря.";
+  } else {
+    cb.disabled = false;
+    wrap.classList.remove("dead");
+    label.textContent = "автоклейм";
+    wrap.title = "Забирать награды автоматически, как только они дозреют";
+  }
+}
+
+/* Баннер про невозможность автозбора: Twitch требует браузерный отпечаток,
+   который программа не подделает. */
+function renderNotice(s) {
+  let el = document.getElementById("notice");
+  if (!s.claim_blocked) {
+    if (el) el.remove();
+    return;
+  }
+  const ready = s.ready_now || [];
+  const html =
+    "<b>Забрать из программы не выйдет — нужен браузер.</b><br>" +
+    "Twitch защищает операцию забора проверкой браузерного отпечатка " +
+    "(Client-Integrity). Он выдаётся только настоящим браузером при загрузке " +
+    "twitch.tv, поэтому ни один client_id и токен обойти её не могут — " +
+    "проверены все клиенты Twitch. Отслеживание прогресса при этом работает." +
+    (ready.length
+      ? "<ul><li><b>Готово к забору:</b> " + ready.map(esc).join("; ") + "</li></ul>"
+      : "") +
+    "<a class='claim-inline' href='" + esc(s.inventory_url) +
+    "' target='_blank' rel='noopener'>Открыть инвентарь Twitch →</a>";
+
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "notice";
+    el.className = "notice";
+    $("main").prepend(el);
+  }
+  el.innerHTML = html;
 }
 
 function renderTop(s) {
@@ -204,7 +270,8 @@ function renderTop(s) {
 
   $("#foot-left").textContent = s.error
     ? "Ошибка: " + s.error
-    : "Обновлено в " + (s.updated_at || "—");
+    : (s.claim_blocked ? "Автозабор недоступен — Twitch требует браузер. " : "") +
+      "Обновлено в " + (s.updated_at || "—");
   $("#foot-right").textContent = "интервал " + s.poll_interval + " с";
 }
 
@@ -232,6 +299,7 @@ async function poll() {
     renderTop(s);
     renderCards(s);
     renderCampaigns(s);
+    applyClaimBlocked(s);
     notifyNewReady(s);
     hideBanner();
   } catch (e) {
@@ -268,6 +336,11 @@ async function setAutoClaim(on) {
 
 document.addEventListener("DOMContentLoaded", () => {
   $("#auto-claim").addEventListener("change", (e) => setAutoClaim(e.target.checked));
+  setInterval(() => {
+    const cb = $("#auto-claim");
+    if (STATE && cb.checked !== STATE.auto_claim) cb.checked = STATE.auto_claim;
+    applyClaimBlocked(STATE);
+  }, 5000);
 
   $("#btn-refresh").addEventListener("click", async (e) => {
     const btn = e.currentTarget;

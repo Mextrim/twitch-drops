@@ -131,6 +131,9 @@ h1 { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: .2px; }
 .switch input:checked + .track { background: var(--accent); }
 .switch input:checked + .track .thumb { left: 20px; }
 .switch-label { font-size: 12.5px; color: var(--txt-dim); }
+.switch.dead { opacity: .55; cursor: not-allowed; }
+.switch.dead .track { background: #2b3140 !important; }
+.switch.dead .switch-label { color: var(--warn); }
 
 /* ---------- Карточки-сводки ---------- */
 
@@ -289,6 +292,43 @@ main { padding: 14px 26px 30px; }
 .drop-right .eta { color: var(--txt-faint); font-size: 11.5px; display: block; }
 .drop-right .ready { color: var(--ok); font-weight: 620; }
 
+.claim {
+  display: inline-block;
+  padding: 4px 12px;
+  background: var(--ok);
+  color: #06251b;
+  border-radius: 7px;
+  font-weight: 650;
+  font-size: 12.5px;
+  text-decoration: none;
+  transition: .15s;
+}
+.claim:hover { filter: brightness(1.12); }
+
+.notice {
+  margin: 0 26px 16px;
+  padding: 14px 17px;
+  background: rgba(255, 178, 36, .09);
+  border: 1px solid rgba(255, 178, 36, .32);
+  border-left: 3px solid var(--warn);
+  border-radius: var(--r);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.notice b { color: var(--warn); }
+.notice ul { margin: 7px 0 0; padding-left: 20px; color: var(--txt-dim); }
+.notice .claim-inline {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 7px 15px;
+  background: var(--ok);
+  color: #06251b;
+  border-radius: 8px;
+  font-weight: 650;
+  text-decoration: none;
+}
+.notice .claim-inline:hover { filter: brightness(1.12); }
+
 .channels {
   padding: 9px 16px 13px;
   border-top: 1px solid var(--line);
@@ -375,4 +415,5 @@ footer {
   .drop { grid-template-columns: 1fr; gap: 7px; }
   .drop-right { text-align: left; }
   .cards, main, .topbar { padding-left: 14px; padding-right: 14px; }
+  .notice { margin-left: 14px; margin-right: 14px; }
 }

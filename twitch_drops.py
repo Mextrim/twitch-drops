@@ -128,6 +128,27 @@ CLAIMS_PATH = app_dir() / "claims.csv"
 # Статусы ответа claimDropRewards, которые считаем успехом
 CLAIM_OK = {"ELIGIBLE_FOR_ALL", "DROP_INSTANCE_ALREADY_CLAIMED"}
 
+# Twitch защищает операцию забора наград проверкой Client-Integrity: сервер
+# требует браузерный отпечаток, который выдаёт JS-клиентка Kasada при
+# загрузке страницы twitch.tv в настоящем браузере.
+#
+# Проверено запросами к живому API для client_id = Android, Web, Android TV
+# и собственного OAuth-клиента, при android-UA и browser-UA: первые три
+# отвечают IntegrityCheckFailed, последний — 401. Смена client_id не даёт
+# обхода. Чтение инвентаря (Inventory) при этом работает, поэтому трекер
+# полезен, а автоклейм — нет.
+CLAIM_BLOCKED_REASON = (
+    "Twitch требует браузерный отпечаток (Client-Integrity) для забора наград.\n"
+    "    Он выдаётся только настоящим браузером при загрузке twitch.tv,\n"
+    "    поэтому из программы забрать награду нельзя — это ограничение\n"
+    "    Twitch, а не настройки. Смена client_id не помогает: проверены\n"
+    "    все клиенты Twitch, результат одинаковый.\n"
+    "    Дропс дозрел и ждёт вас на странице инвентаря — заберите его одним\n"
+    "    кликом, программа напомнит и откроет ссылку."
+)
+
+DROPS_INVENTORY_URL = "https://www.twitch.tv/drops/inventory"
+
 
 # --------------------------------------------------------------------------- #
 #  Модели
@@ -553,12 +574,11 @@ class DropsClient:
             code = (err.get("extensions") or {}).get("code", "")
             message = err.get("message", "")
             if code == "IntegrityCheckFailed":
-                raise NeedClientIntegrity(
-                    "Twitch требует Client-Integrity для этого клиента.\n"
-                    "    Выбранный Client-ID — браузерный. Укажите в config.json\n"
-                    f'    "client_id": "{CLIENT_ID_ANDROID}" (мобильное приложение),\n'
-                    "    для него проверка целостности не выполняется."
-                )
+                # Проверено на живом API: этот код возвращают ВСЕ клиенты
+                # Twitch (Android, Web, Android TV) на мутации клейма, при
+                # любом User-Agent. Смена client_id тут не помогает — под
+                # проверку попадает только забор, а чтение инвентаря нет.
+                raise NeedClientIntegrity(CLAIM_BLOCKED_REASON)
             if code in {"PersistedQueryNotFound", "PersistedQueryNotSupported"}:
                 raise TwitchError(
                     f"Twitch больше не знает запрос {operation_name!r}.\n"
@@ -1227,9 +1247,14 @@ def build_payload(
         sum(d.percent for d in active) / len(active) if active else 0.0
     )
 
+    ready_now = [d for d in drops if d.can_claim]
+
     return {
         "connected": not state.get("error"),
         "error": state.get("error"),
+        "claim_blocked": bool(state.get("claim_blocked")),
+        "inventory_url": DROPS_INVENTORY_URL,
+        "ready_now": [f"{d.benefit_name} — {d.campaign_name}" for d in ready_now],
         "updated_at": datetime.now().strftime("%H:%M:%S"),
         "poll_interval": int(config["poll_interval"]),
         "auto_claim": bool(config["auto_claim"]),
@@ -1278,6 +1303,7 @@ class Dashboard:
             "rate": None,
             "error": None,
             "claims": [],
+            "claim_blocked": False,
         }
         self._busy = False
         self._thread: threading.Thread | None = None
@@ -1373,6 +1399,13 @@ class Dashboard:
                 continue
             try:
                 ok, _status = self.client.claim(d.drop_instance_id)
+            except NeedClientIntegrity:
+                # Повторять бессмысленно: ограничение не в настройках, а в
+                # самом Twitch. Пробуем один раз и переходим к ручному забору,
+                # иначе каждый цикл опроса сыпал бы одинаковые ошибки.
+                with self.lock:
+                    self.state["claim_blocked"] = True
+                break
             except TwitchError:
                 continue
             if ok:
@@ -1540,6 +1573,7 @@ def poll_once(
 
     # Темп считаем между двумя опросами, а не с начала сессии: так он
     # отражает то, что происходит сейчас, а не среднее за всё время.
+    state.setdefault("claim_blocked", False)
     rate = measure_watch_rate(state)
     state["sample_time"] = time.time()
     state["sample_total"] = total
@@ -1556,11 +1590,20 @@ def poll_once(
     )
 
     # Новая кампания, которой раньше не было, — повод посмотреть.
+    # Признак «первый проход» запоминаем ДО цикла: иначе после добавления
+    # первой кампании множество перестаёт быть пустым и «новыми» назовутся
+    # все последующие.
     seen = state.setdefault("campaigns_seen", set())
+    first_pass = not seen
     for cid, group in _group(drops):
         if cid not in seen:
-            if seen:
-                print(a.cyan(f"★ Новая кампания: {group[0].campaign_name} ({group[0].game_name})"))
+            if not first_pass:
+                print(
+                    a.cyan(
+                        f"★ Новая кампания: {group[0].campaign_name} "
+                        f"({group[0].game_name})"
+                    )
+                )
             seen.add(cid)
 
     if not config["auto_claim"]:
@@ -1574,6 +1617,13 @@ def poll_once(
         for attempt in range(1, config["claim_retry"] + 1):
             try:
                 ok, status = client.claim(d.drop_instance_id)
+            except NeedClientIntegrity:
+                # Не повторяем: ограничение на стороне Twitch, а не в настройках.
+                # Выходим из цикла, но НЕ возвращаемся — иначе до блока с
+                # подсказкой про браузер снизу не дойдём.
+                state["claim_blocked"] = True
+                ok, status = False, "нужен браузер"
+                break
             except TwitchError as exc:
                 status = str(exc)
             if ok:
@@ -1589,7 +1639,27 @@ def poll_once(
             if config["sound"]:
                 beep()
         else:
+            if state.get("claim_blocked"):
+                # Подробности один раз ниже, а не по строке на каждый дропс.
+                break
             print(a.red(f"✖ Не удалось забрать {d.drop_name}: {status}"))
+
+    if state.get("claim_blocked"):
+        ready = [d for d in drops if d.can_claim]
+        print()
+        print(a.yellow("═" * 78))
+        print(a.bold("ГОТОВО К ЗАБОРУ, НО НУЖЕН БРАУЗЕР"))
+        for d in ready:
+            print(f"  • {d.benefit_name}  ({d.campaign_name})")
+        print()
+        print("  Twitch защищает операцию забора проверкой браузерного отпечатка")
+        print("  (Client-Integrity). Она выдаётся только настоящим браузером,")
+        print("  поэтому программа забрать награду не может — это ограничение")
+        print("  Twitch, а не настройка. Смена client_id не помогает: проверены")
+        print("  все клиенты Twitch, результат одинаковый.")
+        print()
+        print(f"  Заберите одним кликом здесь:  {a.cyan(DROPS_INVENTORY_URL)}")
+        print("═" * 78)
 
     return drops
 
