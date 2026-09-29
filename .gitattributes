@@ -1,0 +1,14 @@
+# Нормализуем переводы строк, иначе в Windows и Linux файлы различаются.
+* text=auto eol=lf
+
+*.py    text diff=python
+*.js    text
+*.css   text
+*.html  text
+*.md    text
+*.json  text
+*.txt   text
+*.yml   text
+*.bat   text eol=crlf
+*.exe   binary
+*.png   binary
