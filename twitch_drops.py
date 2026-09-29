@@ -1075,16 +1075,24 @@ def measure_watch_rate(state: dict[str, Any]) -> float | None:
     return gained / elapsed
 
 
+def eta_seconds(d: Drop, rate: float | None) -> int:
+    """Через сколько секунд примерно дозреет дропс при текущем темпе."""
+    if d.is_claimed or d.can_claim or not rate or d.seconds_left <= 0:
+        return 0
+    return int(d.seconds_left / rate)
+
+
 def eta_for(d: Drop, rate: float | None) -> str:
-    """Через сколько примерно дозреет дропс при текущем темпе просмотра."""
-    if d.is_claimed or d.can_claim:
+    """
+    ETA строкой для консоли.
+
+    Если темп настолько высокий, что ETA совпадает с остатком, показывать
+    его бессмысленно — получилось бы «осталось 59 мин ~59 мин».
+    """
+    eta = eta_seconds(d, rate)
+    if not eta or eta > d.seconds_left * 0.85:
         return ""
-    if not rate:
-        return ""
-    remaining = d.seconds_left
-    if remaining <= 0:
-        return ""
-    return f" ~{human_duration(int(remaining / rate))}"
+    return f" ~{human_duration(eta)}"
 
 
 def priority_score(d: Drop, rate: float | None) -> float:
@@ -1231,7 +1239,9 @@ def build_payload(
                         "watched_min": d.seconds_watched // 60,
                         "needed_min": d.seconds_needed // 60,
                         "left": human_duration(d.seconds_left),
+                        "seconds_left": d.seconds_left,
                         "eta": eta_for(d, rate).replace("~", "").strip(),
+                        "eta_seconds": eta_seconds(d, rate),
                         "claimed": d.is_claimed,
                         "ready": d.can_claim,
                         "blocked": not d.preconditions_met,

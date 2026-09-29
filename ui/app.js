@@ -100,8 +100,11 @@ function dropRow(d, blocked) {
   } else if (d.ready) {
     right = "<span class='ready'>ГОТОВО</span><span class='eta'>ждёт клейма</span>";
   } else {
+    // ETA повторяет «осталось», когда темп высокий — тогда не показываем
+    const eta = (d.eta_seconds && d.seconds_left &&
+                 d.eta_seconds <= d.seconds_left * 0.85) ? d.eta : "";
     right = "<b>" + d.watched_min + "</b>/" + d.needed_min + " мин" +
-      "<span class='eta'>осталось " + esc(d.left) + (d.eta ? " " + esc(d.eta) : "") + "</span>";
+      "<span class='eta'>осталось " + esc(d.left) + (eta ? " " + esc(eta) : "") + "</span>";
   }
 
   let sub;

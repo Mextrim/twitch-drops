@@ -251,7 +251,7 @@ main { padding: 14px 26px 30px; }
 
 .drop {
   display: grid;
-  grid-template-columns: 1fr 190px 116px;
+  grid-template-columns: 1fr 170px 148px;
   align-items: center;
   gap: 13px;
   padding: 9px 0;
@@ -289,7 +289,14 @@ main { padding: 14px 26px 30px; }
   white-space: nowrap;
 }
 .drop-right b { color: var(--txt); font-weight: 600; }
-.drop-right .eta { color: var(--txt-faint); font-size: 11.5px; display: block; }
+.drop-right .eta {
+  color: var(--txt-faint);
+  font-size: 11.5px;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .drop-right .ready { color: var(--ok); font-weight: 620; }
 
 .claim {
