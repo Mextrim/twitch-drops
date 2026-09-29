@@ -37,8 +37,19 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse
 
-# На Windows консоль по умолчанию cp866/cp1251 — принудительно UTF-8,
-# иначе русский текст в выводе превращается в кракозябры.
+# На Windows консоль по умолчанию cp866/cp1251. Переключаем саму консоль на
+# UTF-8, иначе русский текст превращается в кракозябры: Python пишет UTF-8
+# байты, а консоль читает их как cp1251.
+if os.name == "nt":
+    try:
+        import ctypes
+
+        _k32 = ctypes.windll.kernel32
+        _k32.SetConsoleOutputCP(65001)
+        _k32.SetConsoleCP(65001)
+    except Exception:
+        pass
+
 for _stream in (sys.stdout, sys.stderr):
     try:
         _stream.reconfigure(encoding="utf-8", errors="replace")
