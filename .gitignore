@@ -1,0 +1,24 @@
+# --- Секреты и личные данные: НИКОГДА не коммитить ---
+config.json
+!config.example.json
+claims.csv
+*.env
+.env
+
+# --- Собранные бинарники ---
+*.exe
+build/
+dist/
+*.spec
+__pycache__/
+*.pyz
+
+# --- Кэш и мусор ---
+*.log
+*.log.err
+catalog.json
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store

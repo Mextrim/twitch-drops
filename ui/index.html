@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Twitch Drops</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">◈</span>
+    <div>
+      <h1>Twitch Drops</h1>
+      <p class="sub" id="account">подключение…</p>
+    </div>
+  </div>
+
+  <div class="topstats">
+    <div class="chip" id="chip-conn"><i class="dot"></i><span>—</span></div>
+    <div class="chip" id="chip-rate">темп <b>—</b></div>
+    <div class="chip" id="chip-deadline">дедлайн <b>—</b></div>
+    <label class="switch" title="Забирать награды автоматически, как только они дозреют">
+      <input type="checkbox" id="auto-claim" checked>
+      <span class="track"><span class="thumb"></span></span>
+      <span class="switch-label">автоклейм</span>
+    </label>
+    <button class="btn" id="btn-refresh" title="Опросить Twitch сейчас">Обновить</button>
+  </div>
+</header>
+
+<section class="cards" id="cards"></section>
+
+<main>
+  <div class="toolbar">
+    <div class="filters">
+      <button class="tab is-active" data-filter="all">Все</button>
+      <button class="tab" data-filter="ready">Готовые</button>
+      <button class="tab" data-filter="risk">Под дедлайном</button>
+      <button class="tab" data-filter="unlinked">Без привязки</button>
+    </div>
+    <label class="chk"><input type="checkbox" id="hide-done"> скрыть забранные</label>
+  </div>
+
+  <div id="campaigns"></div>
+  <p class="empty" id="empty" hidden></p>
+</main>
+
+<footer>
+  <span id="foot-left">Twitch Drops</span>
+  <span id="foot-right"></span>
+</footer>
+
+<div class="toasts" id="toasts"></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

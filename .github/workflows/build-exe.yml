@@ -1,0 +1,39 @@
+name: Сборка Windows EXE
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Установить зависимости
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Собрать EXE
+        run: python build_exe.py
+
+      - name: Приложить EXE к релизу
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/TwitchDrops.exe
+          generate_release_notes: true
+
+      - name: Сохранить сборку как артефакт
+        uses: actions/upload-artifact@v4
+        with:
+          name: TwitchDrops-exe
+          path: dist/TwitchDrops.exe

@@ -1,0 +1,20 @@
+{
+  "auth_token": "",
+  "client_id": "kd1unb4b3q4t58fwlpcbzcbnm76a8fp",
+  "oauth_client_id": "",
+  "oauth_client_secret": "",
+  "oauth_redirect_uri": "http://localhost:8765",
+  "refresh_token": "",
+  "token_expires_at": 0,
+  "device_id": "",
+  "poll_interval": 60,
+  "auto_claim": true,
+  "claim_retry": 3,
+  "fetch_reward_campaigns": false,
+  "warn_minutes_before_end": 30,
+  "show_channels": true,
+  "max_channels": 8,
+  "sound": true,
+  "log_claims": true,
+  "max_failures": 10
+}
